@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+.venv/
+.env
+.env.local
+session_user*
+*.session
+*.session-journal
+*.log
+.DS_Store
+Thumbs.db
+
