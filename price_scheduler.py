@@ -205,26 +205,44 @@ class PriceScheduler:
         
         now = datetime.utcnow()
         
-        # 시작 시간: 상장 2분 전
-        start_time = task.listing_time - timedelta(minutes=2)
+        # 시작 시간: 상장 5분 전
+        start_time = task.listing_time - timedelta(minutes=5)
         
-        # 종료 시간: 상장 후 3분
-        end_time = task.listing_time + timedelta(minutes=3)
+        # 종료 시간: 상장 후 5분
+        end_time = task.listing_time + timedelta(minutes=5)
         
         # 아직 시작 전이면 대기
         if now < start_time:
             wait_seconds = (start_time - now).total_seconds()
-            logging.info(
-                "waiting for price check start: token=%s wait=%.0fs",
-                task.token_symbol,
-                wait_seconds,
-            )
-            await asyncio.sleep(min(wait_seconds, 60))  # 최대 1분씩 대기
+            
+            # 10분 이상 남았으면 로그를 5분마다만 출력
+            # 10분 이내면 1분마다 출력
+            if wait_seconds > 600:
+                log_interval = 300  # 5분
+            else:
+                log_interval = 60   # 1분
+            
+            # 마지막 로그가 없거나 충분한 시간이 지났으면 로그 출력
+            if not hasattr(task, '_last_wait_log') or \
+               (now - task._last_wait_log).total_seconds() >= log_interval:
+                logging.info(
+                    "waiting for price check start: token=%s listing_time=%s wait=%.0fm",
+                    task.token_symbol,
+                    task.listing_time.strftime("%Y-%m-%d %H:%M UTC"),
+                    wait_seconds / 60,
+                )
+                task._last_wait_log = now
+            
+            # 실제 대기는 최대 1분씩
+            await asyncio.sleep(min(wait_seconds, 60))
             return
         
         # 종료 시간 지났으면 제거
         if now > end_time:
-            logging.info("price check ended: token=%s", task.token_symbol)
+            logging.info(
+                "price check ended: token=%s (not found)",
+                task.token_symbol,
+            )
             del self.tasks[message_id]
             return
         
@@ -240,11 +258,11 @@ class PriceScheduler:
             logging.exception("price check error: msg_id=%s", message_id)
         
         # 다음 체크까지 대기
-        # 상장 전: 10초, 상장 후: 20초
+        # 상장 전: 15초, 상장 후: 30초 (API 부담 줄이기)
         if now < task.listing_time:
-            await asyncio.sleep(10)
+            await asyncio.sleep(15)
         else:
-            await asyncio.sleep(20)
+            await asyncio.sleep(30)
     
     async def run(self) -> None:
         """스케줄러 메인 루프"""

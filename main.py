@@ -114,13 +114,21 @@ async def handle_message(
     username = getattr(chat, "username", None)
 
     if not cfg.is_allowed_channel(chat_id, username):
-        logging.debug(
-            "skip: not in SOURCE_CHANNELS | chat=%s id=%s configured=%s",
-            username,
+        logging.warning(
+            "🔴 SKIPPED MESSAGE | chat_username=%s (@%s) | chat_id=%s | configured_channels=%s",
+            getattr(chat, "title", "N/A"),
+            username if username else "None",
             chat_id,
             cfg.source_channels,
         )
         return
+    
+    logging.info(
+        "✅ ACCEPTED MESSAGE | chat_username=%s (@%s) | chat_id=%s",
+        getattr(chat, "title", "N/A"),
+        username if username else "None",
+        chat_id,
+    )
 
     text = _extract_message_text(msg)
     if not passes_local_filters(cfg, text):
@@ -314,7 +322,14 @@ async def main_async() -> None:
 
         async def _on_message(event: events.newmessage.NewMessage.Event) -> None:
             try:
-                logging.debug("message received: chat_id=%s", event.chat_id)
+                chat = await event.get_chat()
+                logging.info(
+                    "📨 NEW MESSAGE EVENT | chat_id=%s | username=@%s | title=%s | msg_id=%s",
+                    event.chat_id,
+                    getattr(chat, "username", "None"),
+                    getattr(chat, "title", "N/A"),
+                    event.message.id if event.message else "None",
+                )
                 await handle_message(cfg, client, event.message, price_fetcher, price_scheduler)
             except Exception:
                 logging.exception("handle_message error")
