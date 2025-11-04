@@ -268,6 +268,17 @@ async def main_async() -> None:
         for src in cfg.source_channels:
             try:
                 ent = await client.get_entity(src)
+                
+                # 채널인 경우 자동으로 join 시도
+                if hasattr(ent, 'broadcast') and ent.broadcast:
+                    try:
+                        from telethon.tl.functions.channels import JoinChannelRequest
+                        await client(JoinChannelRequest(ent))
+                        logging.info("✅ joined channel: %s", getattr(ent, 'username', src))
+                    except Exception as join_err:
+                        # 이미 가입되어 있거나, 권한 문제일 수 있음
+                        logging.debug("join attempt for %s: %s", src, join_err)
+                
                 resolved.append(ent)
                 try:
                     full = await client(GetFullChannelRequest(ent))
